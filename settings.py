@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 app.config['JSON_AS_ASCII'] = False
 app.config['MONGO_DBNAME'] = 'NewNews'
-app.config['MONGO_URI'] ='mongodb+srv://newnews_user:jOtZcR7QQrIdyMfB@newnews.uqkma.mongodb.net/NewNews?retryWrites=true&w=majority' #os.environ['DB_HOST']
+app.config['MONGO_URI'] = os.environ['DB_HOST']
 mongo = PyMongo(app)
 
 #
