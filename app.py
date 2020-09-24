@@ -1,17 +1,4 @@
-import pymongo
-from bson import ObjectId
-from flask import Flask, jsonify, request, Response
-from flask_pymongo import PyMongo
-import os
-
-
-app = Flask(__name__)
-
-app.config['JSON_AS_ASCII'] = False
-app.config['MONGO_DBNAME'] = 'NewNews'
-app.config['MONGO_URI'] = os.environ['DB_HOST']
-mongo = PyMongo(app)
-
+from settings import *
 
 '''
  Notícias
@@ -30,7 +17,7 @@ def get_all_news():
              'self': request.url + '/' + str(q['_id']),
              'title': q['title'],
              'content': q['content'],
-             'author': q['author']})
+             'author': mongo.db.authors.find_one({'_id': ObjectId(q['author']['_id'])})})
 
     return jsonify({'results': output})
 
@@ -40,15 +27,15 @@ def get_all_news():
 def add_news():
     news = mongo.db.news
 
-    title = request.json['title']
     content = request.json['content']
     author = request.json['author']
+    title = request.json['title']
 
     author_id = mongo.db.authors.find_one({'name': author})
 
     if not author_id:
         author_id = mongo.db.authors.insert({'name': author})
-        news.insert({'title': title, 'content': content, 'author': {'_id': author_id, 'name': author}})
+        news.insert({'title': title, 'content': content, 'author': {'_id': author_id}})
     else:
         news.insert({'title': title, 'content': content, 'author': author_id})
 
@@ -61,9 +48,16 @@ def get_news(id):
     news = mongo.db.news
 
     found = news.find_one({'_id': ObjectId(id)})
-    output = {'title': found['title'], 'content': found['content'], 'author': found['author']}
 
-    return jsonify({'result': output})
+    if found:
+        output = {'title': found['title'],
+                  'content': found['content'],
+                  'author':  mongo.db.authors.find_one({'_id': ObjectId(found['author']['_id'])})}
+
+        return jsonify({'result': output})
+
+    return Response(status=404)
+
 
 
 # Atualizar notícia pelo id
@@ -78,7 +72,7 @@ def update_news(id):
     news.update_one({'_id': ObjectId(id['$oid']) if '$oid' in id else ObjectId(id)},
                               {'$set':{'title': title, 'content': content, 'author': author}})
 
-    return jsonify({'result': "News updated"})
+    return Response(status=200)
 
 
 # Deletar notícia pelo id
@@ -95,11 +89,12 @@ def delete_news(id):
 def search_news(query):
     news = mongo.db.news
 
-    news.create_index([('author', 'text')])
+    news.drop_indexes()
+    news.create_index([('title', 'text'), ('content', 'text'), ('author.name', 'text')])
 
-    found = news.find({ "$text": { "$search": str(query) }})
+    found = news.find({ "$text": { "$search": query }})
 
-    output = ['Not found']
+    output = []
     if found:
         for q in found:
             output.append(
